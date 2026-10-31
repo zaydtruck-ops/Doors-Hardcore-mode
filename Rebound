@@ -1,0 +1,8 @@
+loadstring(game:HttpGet("https://raw.githubusercontent.com/zaydtruck-ops/Doors-Hardcore-mode/refs/heads/main/Rebound_first"))()
+game.ReplicatedStorage.GameData.DoorsOpened.Changed:Wait()
+task.wait(2)
+for i=1, 5 do
+  loadstring(game:HttpGet("https://raw.githubusercontent.com/zaydtruck-ops/Doors-Hardcore-mode/refs/heads/main/Rebound_not_first"))()
+  game.ReplicatedStorage.GameData.DoorsOpened.Changed:Wait()
+  task.wait(math.random(1, 2))
+end
