@@ -1,0 +1,299 @@
+local number = game.ReplicatedStorage.GameData.DoorsOpened.Value
+
+local function ChangeLights(Color, NeonColor, FadeIn, FadeOut)
+	task.spawn(function()
+    local RunService = game:GetService("RunService")
+    local BLUE = NeonColor
+    local NEON_BLUE = NeonColor
+    local FADE_IN_TIME = FadeIn
+    local FADE_OUT_TIME = FadeOut
+    -- Stop the previous effect if it exists.
+    local previousStop = getgenv().LightFixtureColorEffectStop
+    if previousStop then
+        previousStop()
+    end
+    local stopped = false
+    local objects = {}
+    local function StopEffect()
+        stopped = true
+    end
+    getgenv().LightFixtureColorEffectStop = StopEffect
+    -- Track supported objects inside LightFixture models.
+    local function TrackObject(object)
+        if objects[object] then
+            return
+        end
+        local fixture = object:FindFirstAncestor("LightFixture")
+        if not fixture then
+            return
+        end
+        local targetColor
+        if object:IsA("PointLight")
+            or object:IsA("SpotLight")
+            or object:IsA("SurfaceLight") then
+            targetColor = BLUE
+        elseif object:IsA("BasePart")
+            and object.Name == "Neon" then
+            targetColor = NEON_BLUE
+        end
+        if not targetColor then
+            return
+        end
+        objects[object] = {
+            OriginalColor = object.Color,
+            TargetColor = targetColor
+        }
+    end
+    -- Find existing fixtures.
+    for _, object in ipairs(game:GetDescendants()) do
+        TrackObject(object)
+    end
+    -- Detect new fixtures and objects added later.
+    local descendantConnection = game.DescendantAdded:Connect(function(object)
+        TrackObject(object)
+        if object.Name == "LightFixture" then
+            for _, child in ipairs(object:GetDescendants()) do
+                TrackObject(child)
+            end
+        end
+    end)
+    local startTime = os.clock()
+    while not stopped do
+        local elapsed = os.clock() - startTime
+        local alpha
+        local fadingOut = false
+        if elapsed < FADE_IN_TIME then
+            alpha = math.clamp(elapsed / FADE_IN_TIME, 0, 1)
+        else
+            fadingOut = true
+            alpha = math.clamp(
+                (elapsed - FADE_IN_TIME) / FADE_OUT_TIME,
+                0,
+                1
+            )
+        end
+        for object, data in pairs(objects) do
+            if object.Parent then
+                if fadingOut then
+                    object.Color = data.TargetColor:Lerp(
+                        data.OriginalColor,
+                        alpha
+                    )
+                else
+                    object.Color = data.OriginalColor:Lerp(
+                        data.TargetColor,
+                        alpha
+                    )
+                end
+            else
+                objects[object] = nil
+            end
+        end
+        if fadingOut and alpha >= 1 then
+            break
+        end
+        RunService.Heartbeat:Wait()
+    end
+    descendantConnection:Disconnect()
+    -- Only clear the stop function if this is still the active effect.
+    if getgenv().LightFixtureColorEffectStop == StopEffect then
+        getgenv().LightFixtureColorEffectStop = nil
+    end
+    -- Restore original colors if the effect ended naturally.
+    if not stopped then
+        for object, data in pairs(objects) do
+            if object.Parent then
+                object.Color = data.OriginalColor
+            end
+        end
+    end
+	end)
+end
+
+local spawner = loadstring(game:HttpGet("https://raw.githubusercontent.com/RegularVynixu/Utilities/main/Doors/Entity%20Spawner/V2/Source.lua"))()
+
+local entity = spawner.Create({
+	Entity = {
+		Name = "Cease",
+		Asset = "rbxassetid://136831598848553",
+		HeightOffset = 0
+	},
+	Lights = {
+		Flicker = {
+			Enabled = false,
+			Duration = 7
+		},
+		Shatter = false,
+		Repair = false
+	},
+	Earthquake = {
+		Enabled = false
+	},
+	CameraShake = {
+		Enabled = true
+	},
+	Movement = {
+		Speed = 40,
+		Delay = 0,
+		Reversed = false
+	},
+	Rebounding = {
+		Enabled = false
+	},
+	Damage = {
+		Enabled = false
+	},
+	Crucifixion = {
+		Enabled = true,
+		Range = 40,
+		Resist = false,
+		Break = true
+	},
+	Death = {
+		Type = "Guiding",
+		Hints = {
+			"You died to who you call Cease.",
+      "It signals it's arrival by turning the lights to a blue-ish hue and playing a sound cue.",
+      "When it is here, do not move, as it's hearing is extremely advanced.",
+      "Good luck !"
+		},
+		Cause = "Cease"
+	}
+})
+
+entity:SetCallback("OnSpawned", function()
+	print("Cease has spawned")
+
+	local Players = game:GetService("Players")
+	local RunService = game:GetService("RunService")
+
+	repeat
+		task.wait()
+	until entity.Model
+
+	local ceaseModel = entity.Model
+	ceaseModel.Silence.Playing = false
+
+	task.spawn(function()
+		repeat 
+		task.wait(0.1)
+		until ceaseModel.RoomsEntered:GetAttribute(tostring(number - 2))
+		
+	end)
+
+	local hitboxRange = 60
+	local params = RaycastParams.new()
+	params.FilterType = Enum.RaycastFilterType.Blacklist
+	params.FilterDescendantsInstances = {ceaseModel}
+
+	local raycastLoop
+
+	raycastLoop = RunService.Heartbeat:Connect(function()
+		local origin = ceaseModel:GetPivot().Position
+
+		for _, player in ipairs(Players:GetPlayers()) do
+			local character = player.Character
+
+			if character
+				and character:FindFirstChild("HumanoidRootPart")
+				and character:FindFirstChild("Humanoid") then
+
+				local hrp = character.HumanoidRootPart
+				local humanoid = character.Humanoid
+
+				local direction = (hrp.Position - origin).Unit
+				local rayResult = workspace:Raycast(
+					origin,
+					direction * hitboxRange,
+					params
+				)
+
+				if rayResult
+					and rayResult.Instance
+					and rayResult.Instance:IsDescendantOf(character) then
+
+					local isMovingByInput =
+						humanoid.MoveDirection.Magnitude > 0.1
+
+					local isMovingByVelocity =
+						hrp.AssemblyLinearVelocity.Magnitude > 2
+
+					if isMovingByInput
+						and isMovingByVelocity
+						and humanoid.Health > 0 then
+
+						humanoid.Health = 0
+
+						local sound = Instance.new("Sound")
+						sound.SoundId = "rbxassetid://4988621968"
+						sound.Volume = 10
+						sound.PlaybackSpeed = 0.7
+						sound.Parent = workspace
+						sound:Play()
+
+						print(
+							player.Name
+								.. " was killed by Cease for moving!"
+						)
+
+						local statsFolder =
+							game.ReplicatedStorage:FindFirstChild("GameStats")
+
+						if statsFolder then
+							local playerStats =
+								statsFolder:FindFirstChild(
+									"Player_" .. player.Name
+								)
+
+							if playerStats
+								and playerStats:FindFirstChild("Total")
+								and playerStats.Total:FindFirstChild("DeathCause") then
+
+								playerStats.Total.DeathCause.Value = "Cease"
+							end
+						end
+					end
+				end
+			end
+		end
+	end)
+
+	entity:SetCallback("OnStartMoving", function()
+		print("Entity has started moving")
+		task.wait(4)
+		local ceaseModel = entity.Model
+		ChangeLights(Color3.fromRGB(0, 45, 185), Color3.fromRGB(120, 130, 255), 2, 20)
+		ceaseModel.Silence:Play()
+	end)
+
+	entity:SetCallback("OnDespawning", function()
+		print("Cease has disappeared")
+
+		if raycastLoop then
+			raycastLoop:Disconnect()
+		end
+
+		local achievementGiver = loadstring(
+			game:HttpGet(
+				"https://raw.githubusercontent.com/RegularVynixu/Utilities/main/Doors/Custom%20Achievements/Source.lua"
+			)
+		)()
+
+		achievementGiver({
+			Title = "Not a sound near it.",
+			Desc = "Worse than the Figure...",
+			Reason = "Survive Cease.",
+			Image = "rbxassetid://104367200417966"
+		})
+	end)
+end)
+
+entity:SetCallback("OnDamagePlayer", function(newHealth)
+	if newHealth == 0 then
+		print("Cease has killed the player")
+	else
+		print("Cease has damaged the player")
+	end
+end)
+
+entity:Run()
